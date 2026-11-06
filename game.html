@@ -173,8 +173,9 @@ const HERO_X     = 92;       // 角色碰撞盒基准左沿
 const HERO_CX    = 141;      // 角色底部中心的屏幕 x（绘制锚点）
 const BASE_W     = 98;       // 角色基准宽（run 帧）
 const BASE_H     = 118;      // 角色基准高
-const GRAVITY    = 0.72;
-const JUMP_V     = -13.6;
+const GRAVITY    = 0.55;       // 基准重力：滞空 49.5 帧，起跳窗口宽，人能反应得过来
+const JUMP_V     = -13.6;      // 基准起跳初速（低速时）
+const RAMP_K     = 0.5;        // 速度满档时，跳跃参数放大到 1.5 倍（下落更快）
 const SPEED_MIN  = 5.2;
 const SPEED_MAX  = 13.5;
 const SPEED_RAMP = 0.0038;
@@ -191,6 +192,7 @@ const S = {
   mode:"ready",           // ready | play | over
   y:GROUND_Y, vy:0,
   onGround:true,
+  grav:GRAVITY, jumpV:JUMP_V,   // 随速度变化的当前重力与初速
   jumpBuf:0,          // 还没兑现的跳跃请求（帧）
   speed:SPEED_MIN,
   score:0, best:0,
@@ -213,6 +215,8 @@ function reset(){
   S.deadT = 0;
   S.landT = 0;
   S.jumpBuf = 0;
+  S.grav = GRAVITY;
+  S.jumpV = JUMP_V;
   S.anim = "idle"; S.animT = 0; S.animF = 0;
 
   S.clouds = [];
@@ -242,7 +246,7 @@ function reset(){
    障碍物生成
    ========================================================= */
 function spawnObstacle(startX){
-  const d = Math.min(1, S.score / 900);      // 难度系数
+  const d = Math.min(1, S.score / 1200);     // 难度系数
   const r = Math.random();
   let kind, y;
   if (r < 0.20 + d*0.22){
@@ -308,7 +312,7 @@ document.addEventListener("contextmenu", e=>{
 
 function jump(){
   if (S.onGround){
-    S.vy = JUMP_V;
+    S.vy = S.jumpV;
     S.onGround = false;
     S.landT = 0;
     S.jumpBuf = 0;
@@ -377,11 +381,19 @@ function step(dt){
 
   /* ---- 速度与得分 ---- */
   S.speed = Math.min(SPEED_MAX, S.speed + SPEED_RAMP * dt);
+
+  /* ---- 跳跃节奏跟着速度走 ----
+     障碍快了，角色的跳-落周期也得跟着收紧，否则人还按老节奏判断，
+     落地时早就冲过障碍了。这里让重力与初速随速度同比例放大：
+     滞空变短、下落变快，但跳跃高度基本不变。 */
+  const k = 1 + RAMP_K * Math.min(1, Math.max(0, (S.speed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN)));
+  S.grav   = GRAVITY * k * k;
+  S.jumpV  = JUMP_V * k;
   S.dist  += S.speed * dt;
   S.score += S.speed * dt * SCORE_UNIT;
 
   /* ---- 物理 ---- */
-  S.vy += GRAVITY * dt;
+  S.vy += S.grav * dt;
   S.y  += S.vy * dt;
 
   if (S.y >= GROUND_Y){
@@ -396,7 +408,7 @@ function step(dt){
       // 落地这一刻若还有没兑现的跳跃请求，立刻补跳
       if (S.jumpBuf > 0){
         S.jumpBuf = 0;
-        S.vy = JUMP_V;
+        S.vy = S.jumpV;
         S.onGround = false;
         S.landT = 0;
         setAnim("jump");
@@ -457,7 +469,10 @@ function step(dt){
      它从右侧自然进场，相邻间距仍是原来那套 gap。 */
   const last = S.obstacles[S.obstacles.length - 1];
   if (last && !last.queued){
-    const gap = 300 + Math.random()*260 - Math.min(200, S.score*0.16);
+    // 间距按「帧」算再乘速度：高速时障碍不会密到角色还在空中就被撞上，
+    // 而是一路保持差不多恒定的节奏。
+    const gapFrames = 58 - Math.min(18, S.score * 0.015);
+    const gap = (gapFrames + Math.random()*10) * S.speed;
     if (last.x + last.w + gap <= W + SPAWN_X_OFFSET){
       last.queued = true;
       spawnObstacle(W + SPAWN_X_OFFSET);
