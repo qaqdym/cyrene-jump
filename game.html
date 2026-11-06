@@ -181,6 +181,8 @@ const SPEED_RAMP = 0.0038;
 const SCORE_UNIT = 0.055;
 const PASS_BONUS = 12;
 const LAND_HOLD  = 0.18;     // 落地帧停留时长（秒）
+const JUMP_BUFFER = 9;       // 跳跃缓冲：还没兑现的跳跃请求最多保留 9 帧（0.15 秒）
+const SPAWN_X_OFFSET = 240;  // 障碍在画面右缘外多远处生成（240 ≈ 画面宽的 1/4）
 
 /* =========================================================
    状态
@@ -189,6 +191,7 @@ const S = {
   mode:"ready",           // ready | play | over
   y:GROUND_Y, vy:0,
   onGround:true,
+  jumpBuf:0,          // 还没兑现的跳跃请求（帧）
   speed:SPEED_MIN,
   score:0, best:0,
   dist:0,
@@ -209,6 +212,7 @@ function reset(){
   S.obstacles = [];
   S.deadT = 0;
   S.landT = 0;
+  S.jumpBuf = 0;
   S.anim = "idle"; S.animT = 0; S.animF = 0;
 
   S.clouds = [];
@@ -229,9 +233,9 @@ function reset(){
                     s: 0.55+Math.random()*0.4, v: 0.3+Math.random()*0.3,
                     ph: Math.random()*Math.PI*2 });
   }
-  // 第一个障碍离角色别太远，否则玩家要干等
-  spawnObstacle(W + 130);
-  spawnObstacle(W + 130 + 300 + Math.random()*180);
+  // 障碍固定在画面右缘外生成。offset 越大，障碍露出画面边缘的时刻越晚，
+  // 玩家能多看它一会儿再决定跳不跳。后面的障碍由「提前排队」逻辑接续。
+  spawnObstacle(W + SPAWN_X_OFFSET);
 }
 
 /* =========================================================
@@ -249,7 +253,8 @@ function spawnObstacle(startX){
   S.obstacles.push({
     kind, x:startX, y,
     w: OBST[kind].w, h: OBST[kind].h,
-    passed:false
+    passed:false,
+    queued:false          // 它的下一个障碍是否已经排好
   });
 }
 
@@ -306,7 +311,13 @@ function jump(){
     S.vy = JUMP_V;
     S.onGround = false;
     S.landT = 0;
+    S.jumpBuf = 0;
     setAnim("jump");
+  } else {
+    // 还在空中：先把这次按键记下来，落地那一刻自动补跳。
+    // 没有它的话，落地瞬间按下的跳跃会被整个吞掉，
+    // 玩家得落地后再按一次，手感上就像「跳延迟很大」。
+    S.jumpBuf = JUMP_BUFFER;
   }
 }
 // 统一的「跳一下」入口：键盘、点击画布、触屏按钮都走这里
@@ -382,11 +393,22 @@ function step(dt){
       // land 帧复用 idle 的第一帧
       S.anim = "land";
       S.animT = 0; S.animF = 0;
+      // 落地这一刻若还有没兑现的跳跃请求，立刻补跳
+      if (S.jumpBuf > 0){
+        S.jumpBuf = 0;
+        S.vy = JUMP_V;
+        S.onGround = false;
+        S.landT = 0;
+        setAnim("jump");
+      }
     }
     S.y = GROUND_Y;
   } else {
     S.onGround = false;
   }
+
+  // 跳跃缓冲倒计时
+  if (S.jumpBuf > 0) S.jumpBuf -= dt;
 
   /* ---- 状态动画 ---- */
   if (S.onGround){
@@ -424,9 +446,21 @@ function step(dt){
     }
     if (o.x + o.w < -60){
       S.obstacles.splice(i,1);
-      const tail = S.obstacles.length ? S.obstacles[S.obstacles.length-1].x : -60;
-      const gap = 300 + Math.random()*260 - Math.min(200, S.score*0.16);
-      spawnObstacle(Math.max(tail + gap, o.x + gap));
+    }
+  }
+
+  /* ---- 提前把下一个障碍排好 ----
+     以前要等前一个障碍完全离开画面才生成下一个，
+     新障碍就会直接出现在画面中间；分数越高间距越小，
+     位置越靠左，最后甚至从角色身上冒出来。
+     现在改成：等下一个障碍该出现的位置腾出来了，就把它放到画面右缘外，
+     它从右侧自然进场，相邻间距仍是原来那套 gap。 */
+  const last = S.obstacles[S.obstacles.length - 1];
+  if (last && !last.queued){
+    const gap = 300 + Math.random()*260 - Math.min(200, S.score*0.16);
+    if (last.x + last.w + gap <= W + SPAWN_X_OFFSET){
+      last.queued = true;
+      spawnObstacle(W + SPAWN_X_OFFSET);
     }
   }
 
