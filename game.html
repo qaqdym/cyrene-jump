@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<link rel="icon" href="favicon.png">
+<title>昔涟跳 · Chrome Dino 同款</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:16px;padding:24px;
+    background:
+      radial-gradient(circle at 15% 10%, #FFE4EF 0%, transparent 45%),
+      radial-gradient(circle at 85% 90%, #FFE9F3 0%, transparent 42%),
+      #FFF7FA;
+    color:#7A3350;
+  }
+  .title{font-size:26px;font-weight:800;letter-spacing:3px;text-align:center}
+  .title em{font-style:normal;color:#FF6FA5}
+  .stage{
+    position:relative;width:900px;max-width:96vw;border-radius:18px;overflow:hidden;
+    box-shadow:0 12px 40px rgba(197,120,150,.22);
+    border:1px solid #FADCE8;background:#FFF6FA;
+  }
+  canvas{display:block;width:100%;height:auto}
+  .hud{
+    position:absolute;inset:0;pointer-events:none;
+    display:flex;justify-content:space-between;align-items:flex-start;padding:14px 22px;
+    font-family:ui-monospace,Consolas,monospace;font-weight:800;
+    color:#FF6FA5;text-shadow:0 2px 0 #fff;
+  }
+  .hud .score{font-size:28px;letter-spacing:4px}
+  .hud .hi{font-size:20px;letter-spacing:2px;color:#B07A94}
+  .overlay{
+    position:absolute;inset:0;display:none;flex-direction:column;
+    align-items:center;justify-content:center;gap:10px;
+    background:rgba(255,247,250,.82);
+  }
+  .overlay.show{display:flex}
+  .overlay h3{font-size:28px;letter-spacing:3px;color:#D94F86}
+  .overlay p{font-size:14px;color:#A8647F;letter-spacing:1px}
+  .overlay .big{font-size:40px;font-weight:800;color:#FF6FA5;
+    font-family:ui-monospace,Consolas,monospace;letter-spacing:4px}
+  .hintbar{font-size:12.5px;color:#A8647F;letter-spacing:1.5px;text-align:center}
+  .credit{
+    font-size:11.5px;color:#BC8FA4;letter-spacing:.4px;text-align:center;
+    line-height:2;max-width:760px;
+  }
+  .credit a{color:#D94F86;text-decoration:none}
+  .credit a:hover{text-decoration:underline}
+  .credit .sep{opacity:.55;margin:0 6px}
+  kbd{
+    display:inline-block;padding:1px 7px;border-radius:5px;background:#fff;
+    border:1px solid #FADCE8;box-shadow:0 1px 0 #EFC8D8;font-family:inherit;
+    font-size:12px;color:#D94F86;
+  }
+  /* ---- 触屏按钮：只在粗指针设备（触屏）上显示 ---- */
+  /* 放在画面下方，不覆盖游戏区域，免得挡住障碍物 */
+  .touchpad{
+    display:none;align-items:center;justify-content:center;gap:16px;
+    padding-top:4px;
+  }
+  .tbtn{
+    display:flex;align-items:center;justify-content:center;
+    border-radius:50%;font-weight:800;letter-spacing:2px;
+    color:#fff;text-shadow:0 1px 2px rgba(160,60,100,.45);
+    background:rgba(255,111,165,.72);
+    border:2px solid rgba(255,255,255,.85);
+    box-shadow:0 6px 18px rgba(197,120,150,.28);
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;-webkit-user-select:none;
+    touch-action:none;
+    padding:0;
+  }
+  .tbtn:active{transform:scale(.94);background:rgba(255,111,165,.92)}
+  .tbtn.jump{ width:76px; height:76px; font-size:20px; }
+  .tbtn.restart{ width:52px; height:52px; font-size:13px;
+                 background:rgba(186,140,165,.45); }
+  @media (pointer:coarse){
+    .touchpad{display:flex}
+    .stage{touch-action:none}
+  }
+  @media (max-width:520px){
+    .tbtn.jump{width:68px;height:68px}
+    .tbtn.restart{width:48px;height:48px}
+  }
+</style>
+</head>
+<body>
+  <div class="title">昔涟<em>跳</em></div>
+
+  <div class="stage">
+    <canvas id="cv" width="900" height="500"></canvas>
+    <div class="hud">
+      <div class="hi">HI <span id="best">00000</span></div>
+      <div class="score" id="score">00000</div>
+    </div>
+    <div class="overlay" id="overlay">
+      <h3 id="otitle">准备出发</h3>
+      <div class="big" id="oscore">00000</div>
+      <p id="omsg">按 空格 开始</p>
+    </div>
+  </div>
+
+  <div class="touchpad" id="touchpad">
+    <button class="tbtn restart" id="btnRestart" type="button">重来</button>
+    <button class="tbtn jump"   id="btnJump"   type="button">跳</button>
+  </div>
+
+  <div class="hintbar">
+    <kbd>空格</kbd> / <kbd>↑</kbd> 跳跃　　<kbd>R</kbd> 重来
+  </div>
+
+  <div class="credit">
+    非官方同人作品，与米哈游无关<span class="sep">·</span>角色 © 米哈游<span class="sep">·</span><br>
+    动作帧改编自 <a href="https://github.com/chenkezhen480/cyrene-sequence" target="_blank" rel="noopener">cyrene-sequence</a><span class="sep">·</span>
+    角色结构参考 <a href="https://sketchfab.com/3d-models/cyrene-615e7f6541ce492fa3db1f05e5438788" target="_blank" rel="noopener">Sketchfab CC BY 模型 by Fella_001</a>（已作改编）
+  </div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   素材加载
+   ========================================================= */
+const IMG = {};
+// 图片加载带重试：浏览器一次并发 6 个请求，本地简易服务器的监听队列可能拒掉一部分，
+// 一张图失败就 drawImage 抛错，整个 rAF 循环就断了。失败就重试，最终不行返回 null。
+function load(path, attempt){
+  attempt = attempt || 0;
+  return new Promise(res=>{
+    const i = new Image();
+    i.onload = ()=>res(i);
+    i.onerror = ()=>{
+      if (attempt < 3){
+        setTimeout(()=>res(load(path, attempt+1)), 120 * (attempt+1));
+      } else {
+        res(null);
+      }
+    };
+    i.src = path;
+  });
+}
+// 画之前先确认这张图真的能用
+function usable(im){
+  return !!(im && im.complete && im.naturalWidth > 0);
+}
+
+const ANIM = {
+  idle:  { files:["idle_0.png","idle_1.png","idle_2.png","idle_3.png","idle_4.png","idle_5.png","idle_6.png"], fps:7 },
+  run:   { files:["run_0.png","run_1.png","run_2.png","run_3.png","run_4.png","run_5.png","run_6.png","run_7.png"], fps:14 },
+  jump:  { files:["jump_0.png","jump_1.png","jump_2.png","jump_3.png","jump_4.png"], fps:9 },
+  crash: { files:["crash_0.png","crash_1.png"], fps:3 },
+};
+const ANIM_IMG = {};
+const OBST = {
+  cactus_small: { w:40, h:63 },
+  cactus_large: { w:54, h:85 },
+};
+const DECOR = { cloud:{w:90,h:36}, heart:{w:26,h:25}, berry:{w:46,h:46} };
+
+/* =========================================================
+   世界常量
+   ========================================================= */
+const CV = document.getElementById("cv");
+const ctx = CV.getContext("2d");
+const W = CV.width, H = CV.height;
+
+const GROUND_Y   = 410;      // 地面基线（画布高 500，顶部 60px 留给 HUD）
+const HERO_X     = 92;       // 角色碰撞盒基准左沿
+const HERO_CX    = 141;      // 角色底部中心的屏幕 x（绘制锚点）
+const BASE_W     = 98;       // 角色基准宽（run 帧）
+const BASE_H     = 118;      // 角色基准高
+const GRAVITY    = 0.72;
+const JUMP_V     = -13.6;
+const SPEED_MIN  = 5.2;
+const SPEED_MAX  = 13.5;
+const SPEED_RAMP = 0.0038;
+const SCORE_UNIT = 0.055;
+const PASS_BONUS = 12;
+const LAND_HOLD  = 0.18;     // 落地帧停留时长（秒）
+
+/* =========================================================
+   状态
+   ========================================================= */
+const S = {
+  mode:"ready",           // ready | play | over
+  y:GROUND_Y, vy:0,
+  onGround:true,
+  speed:SPEED_MIN,
+  score:0, best:0,
+  dist:0,
+  obstacles:[],
+  clouds:[], hearts:[], berrys:[],
+  anim:"idle", animT:0, animF:0,
+  landT:0,
+  deadT:0,
+};
+
+function reset(){
+  S.y = GROUND_Y;
+  S.vy = 0;
+  S.onGround = true;
+  S.speed = SPEED_MIN;
+  S.score = 0;
+  S.dist = 0;
+  S.obstacles = [];
+  S.deadT = 0;
+  S.landT = 0;
+  S.anim = "idle"; S.animT = 0; S.animF = 0;
+
+  S.clouds = [];
+  for (let i=0;i<4;i++){
+    S.clouds.push({ x: Math.random()*W, y: 40+Math.random()*160,
+                    s: 0.5+Math.random()*0.6, v: 0.15+Math.random()*0.25 });
+  }
+  S.hearts = [];
+  for (let i=0;i<5;i++){
+    S.hearts.push({ x: Math.random()*W, y: 60+Math.random()*250,
+                    s: 0.6+Math.random()*0.5, v: 0.25+Math.random()*0.35,
+                    ph: Math.random()*Math.PI*2 });
+  }
+  // 浆果不再当障碍，飘在天空里当装饰
+  S.berrys = [];
+  for (let i=0;i<3;i++){
+    S.berrys.push({ x: Math.random()*W, y: 40+Math.random()*230,
+                    s: 0.55+Math.random()*0.4, v: 0.3+Math.random()*0.3,
+                    ph: Math.random()*Math.PI*2 });
+  }
+  // 第一个障碍离角色别太远，否则玩家要干等
+  spawnObstacle(W + 130);
+  spawnObstacle(W + 130 + 300 + Math.random()*180);
+}
+
+/* =========================================================
+   障碍物生成
+   ========================================================= */
+function spawnObstacle(startX){
+  const d = Math.min(1, S.score / 900);      // 难度系数
+  const r = Math.random();
+  let kind, y;
+  if (r < 0.20 + d*0.22){
+    kind = "cactus_large"; y = GROUND_Y;
+  } else {
+    kind = "cactus_small"; y = GROUND_Y;
+  }
+  S.obstacles.push({
+    kind, x:startX, y,
+    w: OBST[kind].w, h: OBST[kind].h,
+    passed:false
+  });
+}
+
+/* =========================================================
+   输入
+   ========================================================= */
+function onKey(e, down){
+  const k = e.key;
+  if (k === " " || k === "Spacebar" || k === "ArrowUp" || k === "w" || k === "W"){
+    e.preventDefault();
+    if (!down) return;
+    pressJump();
+    return;
+  }
+  if (k === "r" || k === "R"){
+    e.preventDefault();
+    if (down && S.mode !== "ready") restart();
+  }
+}
+window.addEventListener("keydown", e=>onKey(e,true),  {passive:false});
+window.addEventListener("keyup",   e=>onKey(e,false), {passive:false});
+CV.addEventListener("pointerdown", e=>{
+  // 触屏按钮自己处理，别让画布上的点击重复触发一次跳跃
+  if (e.target.closest && e.target.closest(".tbtn")) return;
+  pressJump();
+});
+
+/* ---- 触屏按钮 ---- */
+const IS_TOUCH = window.matchMedia("(pointer:coarse)").matches
+              || ("ontouchstart" in window && navigator.maxTouchPoints > 0);
+
+const btnJump = document.getElementById("btnJump");
+const btnRestart = document.getElementById("btnRestart");
+
+if (btnJump){
+  btnJump.addEventListener("pointerdown", e=>{ e.preventDefault(); pressJump(); });
+}
+if (btnRestart){
+  btnRestart.addEventListener("pointerdown", e=>{
+    e.preventDefault();
+    if (S.mode !== "ready") restart();
+  });
+}
+// 双击缩放/长按菜单会打断游戏，一并挡掉
+document.addEventListener("touchstart", e=>{
+  if (e.target.closest && e.target.closest(".tbtn")) e.preventDefault();
+}, {passive:false});
+document.addEventListener("contextmenu", e=>{
+  if (e.target.closest && e.target.closest(".tbtn")) e.preventDefault();
+});
+
+function jump(){
+  if (S.onGround){
+    S.vy = JUMP_V;
+    S.onGround = false;
+    S.landT = 0;
+    setAnim("jump");
+  }
+}
+// 统一的「跳一下」入口：键盘、点击画布、触屏按钮都走这里
+function pressJump(){
+  if (S.mode === "ready") startGame();
+  else if (S.mode === "over") restart();
+  else jump();
+}
+function startGame(){ S.mode = "play"; hideOverlay(); setAnim("run"); }
+function restart(){ reset(); S.mode = "play"; hideOverlay(); setAnim("run"); }
+
+function gameOver(){
+  if (S.mode === "over") return;
+  S.mode = "over";
+  S.deadT = 0;
+  setAnim("crash");
+  const sc = Math.floor(S.score);
+  if (sc > S.best){
+    S.best = sc;
+    try{ localStorage.setItem("cyreneJumpBest", String(sc)); }catch(e){}
+  }
+  document.getElementById("best").textContent = String(S.best).padStart(5,"0");
+  // 碰撞检测在 HUD 更新之前 return，这里补上，避免右上角分数比结算分少 1
+  document.getElementById("score").textContent = String(sc).padStart(5,"0");
+  showOverlay("游戏结束", sc, IS_TOUCH ? "点「跳」再来一次" : "按 空格 再来一次");
+}
+
+function setAnim(a){
+  if (S.anim !== a){ S.anim = a; S.animT = 0; S.animF = 0; }
+}
+
+/* =========================================================
+   主循环
+   ========================================================= */
+function step(dt){
+  // ---- 动画计时 ----
+  // dt 是"帧数"（60fps 基准 = 1）。这里换算成秒，才能按 fps 正确推进。
+  const dtSec = dt / 60;
+  const a = ANIM[S.anim];
+  if (a){
+    S.animT += dtSec;
+    const per = 1 / a.fps;
+    while (S.animT >= per){
+      S.animT -= per;
+      S.animF = (S.animF + 1) % a.files.length;
+    }
+  }
+
+  if (S.mode === "over"){ S.deadT += dt; return; }
+
+  if (S.mode === "ready"){
+    S.clouds.forEach(c=>{ c.x -= c.v*dt; if(c.x < -140){ c.x = W+70; c.y = 40+Math.random()*160; } });
+    S.hearts.forEach(h=>{ h.x -= h.v*dt; if(h.x < -50){ h.x = W+50; h.y = 60+Math.random()*250; } });
+    S.berrys.forEach(b=>{ b.x -= b.v*dt; if(b.x < -60){ b.x = W+60; b.y = 40+Math.random()*230; } });
+    return;
+  }
+
+  /* ---- 速度与得分 ---- */
+  S.speed = Math.min(SPEED_MAX, S.speed + SPEED_RAMP * dt);
+  S.dist  += S.speed * dt;
+  S.score += S.speed * dt * SCORE_UNIT;
+
+  /* ---- 物理 ---- */
+  S.vy += GRAVITY * dt;
+  S.y  += S.vy * dt;
+
+  if (S.y >= GROUND_Y){
+    if (!S.onGround){
+      S.onGround = true;
+      S.vy = 0;
+      S.landT = LAND_HOLD;
+      setAnim("land");
+      // land 帧复用 idle 的第一帧
+      S.anim = "land";
+      S.animT = 0; S.animF = 0;
+    }
+    S.y = GROUND_Y;
+  } else {
+    S.onGround = false;
+  }
+
+  /* ---- 状态动画 ---- */
+  if (S.onGround){
+    if (S.anim === "land"){
+      S.landT -= dtSec;
+      if (S.landT <= 0) setAnim("run");
+    } else {
+      setAnim("run");
+    }
+  }
+
+  /* ---- 背景 ---- */
+  S.clouds.forEach(c=>{
+    c.x -= c.v * S.speed * dt * 0.12;
+    if (c.x < -140){ c.x = W+70; c.y = 40+Math.random()*160; }
+  });
+  S.hearts.forEach(h=>{
+    h.x -= h.v * S.speed * dt * 0.10;
+    h.ph += 0.03 * dt;
+    if (h.x < -50){ h.x = W+50; h.y = 60+Math.random()*250; }
+  });
+  S.berrys.forEach(b=>{
+    b.x -= b.v * S.speed * dt * 0.16;
+    b.ph += 0.025 * dt;
+    if (b.x < -60){ b.x = W+60; b.y = 40+Math.random()*230; }
+  });
+
+  /* ---- 障碍物 ---- */
+  for (let i = S.obstacles.length - 1; i >= 0; i--){
+    const o = S.obstacles[i];
+    o.x -= S.speed * dt;
+    if (!o.passed && o.x + o.w < HERO_X){
+      o.passed = true;
+      S.score += PASS_BONUS;
+    }
+    if (o.x + o.w < -60){
+      S.obstacles.splice(i,1);
+      const tail = S.obstacles.length ? S.obstacles[S.obstacles.length-1].x : -60;
+      const gap = 300 + Math.random()*260 - Math.min(200, S.score*0.16);
+      spawnObstacle(Math.max(tail + gap, o.x + gap));
+    }
+  }
+
+  /* ---- 碰撞 ---- */
+  if (collide()){ gameOver(); return; }
+
+  document.getElementById("score").textContent =
+    String(Math.floor(S.score)).padStart(5,"0");
+}
+
+/* land 帧单独处理（idle 的第 0 帧） */
+ANIM.land = { files:["idle_0.png"], fps:1 };
+
+let last = 0;
+function loop(ts){
+  if (!last) last = ts;
+  const dt = Math.min(3, (ts - last) / 16.667);
+  last = ts;
+  // 一帧里任何意外都不能把循环打断，否则游戏会静默卡死
+  try{
+    step(dt);
+    draw();
+  }catch(err){
+    console.error("frame error", err);
+  }
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   碰撞
+   ========================================================= */
+function heroBox(){
+  // 碰撞盒用固定基准尺寸，不随当前动画帧的图片宽高变化，
+  // 否则跳跃帧（姿态张开 → 更宽）会让碰撞盒跟着横向漂移，判定不稳定。
+  // 水平中心与绘制锚点 HERO_CX 对齐，保证判定和画面完全一致。
+  const bw = BASE_W * 0.40;
+  const bh = BASE_H * 0.78;
+  return {
+    x: HERO_CX - bw/2,
+    y: S.y - bh,
+    w: bw, h: bh
+  };
+}
+function collide(){
+  const b = heroBox();
+  for (const o of S.obstacles){
+    const ox = o.x + o.w*0.16;
+    const ow = o.w*0.68;
+    const oy = o.y - o.h + o.h*0.08;
+    const oh = o.h*0.92;
+    if (b.x < ox+ow && b.x+b.w > ox && b.y < oy+oh && b.y+b.h > oy) return true;
+  }
+  return false;
+}
+
+/* =========================================================
+   绘制
+   ========================================================= */
+function currentFrame(){
+  const a = ANIM[S.anim];
+  if (!a) return null;
+  // ANIM_IMG[key] 是按帧序号排列的数组，这里按下标取帧
+  const arr = ANIM_IMG[S.anim];
+  if (!arr || !arr.length) return null;
+  const im = arr[S.animF % arr.length] || null;
+  return usable(im) ? im : null;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#FFE7F0"); g.addColorStop(.72,"#FFFAFC"); g.addColorStop(1,"#FFF2F7");
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  const sg = ctx.createRadialGradient(778,96,4,778,96,74);
+  sg.addColorStop(0,"#FFF9DA"); sg.addColorStop(.55,"#FFE29A"); sg.addColorStop(1,"rgba(255,214,140,0)");
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.arc(778,96,74,0,Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = "#FADCE8";
+  ctx.beginPath(); ctx.ellipse(120, GROUND_Y+6, 250,105,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#F8D2E3";
+  ctx.beginPath(); ctx.ellipse(760, GROUND_Y+6, 300,118,0,0,Math.PI*2); ctx.fill();
+
+  for (const c of S.clouds){
+    const im = IMG.cloud; if(!usable(im)) continue;
+    ctx.globalAlpha = .9;
+    ctx.drawImage(im, c.x, c.y, DECOR.cloud.w*c.s, DECOR.cloud.h*c.s);
+  }
+  for (const h of S.hearts){
+    const im = IMG.heart; if(!usable(im)) continue;
+    ctx.globalAlpha = .5;
+    ctx.drawImage(im, h.x, h.y+Math.sin(h.ph)*5, DECOR.heart.w*h.s, DECOR.heart.h*h.s);
+  }
+  // 浆果：曾经是悬空障碍，现在只是天空里飘的装饰
+  for (const b of S.berrys){
+    const im = IMG.berry; if(!usable(im)) continue;
+    ctx.globalAlpha = .55;
+    ctx.drawImage(im, b.x, b.y+Math.sin(b.ph)*8, DECOR.berry.w*b.s, DECOR.berry.h*b.s);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = "#F3C4D5"; ctx.fillRect(0,GROUND_Y,W,H-GROUND_Y);
+  ctx.fillStyle = "#E29CB8"; ctx.fillRect(0,GROUND_Y,W,3);
+  const off = -(S.dist % 46);
+  ctx.fillStyle = "rgba(226,156,184,.75)";
+  for (let x=off; x<W+46; x+=46) ctx.fillRect(x, GROUND_Y+26, 26, 4);
+  ctx.fillStyle = "rgba(226,156,184,.35)";
+  for (let x=off-23; x<W+46; x+=46) ctx.fillRect(x, GROUND_Y+58, 26, 4);
+
+  for (const o of S.obstacles){
+    const im = IMG[o.kind]; if(!usable(im)) continue;
+    ctx.drawImage(im, o.x, o.y-o.h, o.w, o.h);
+  }
+
+  const hi = currentFrame();
+  if (hi){
+    // 各动作帧宽度不同（idle 83 / run 98 / jump 95 / crash 128），
+    // 直接左对齐画会在切换动作时左右跳动。这里统一按底部中心锚定：
+    // 水平：帧自身宽度居中于 HERO_CX；垂直：脚底贴合 S.y
+    const dx = HERO_CX - hi.width / 2;
+    ctx.drawImage(hi, dx, S.y - hi.height);
+  }
+}
+
+/* =========================================================
+   覆盖层
+   ========================================================= */
+const overlay = document.getElementById("overlay");
+function showOverlay(title, score, msg){
+  document.getElementById("otitle").textContent = title;
+  document.getElementById("oscore").textContent = String(score).padStart(5,"0");
+  document.getElementById("omsg").textContent  = msg;
+  overlay.classList.add("show");
+}
+function hideOverlay(){ overlay.classList.remove("show"); }
+
+/* =========================================================
+   启动
+   ========================================================= */
+(async function init(){
+  const jobs = [];
+  for (const key in ANIM){
+    // 逐帧按数组下标赋值，不用 push —— push 顺序取决于异步加载完成顺序，
+    // 会导致 animF 与文件名错位
+    ANIM_IMG[key] = new Array(ANIM[key].files.length);
+    ANIM[key].files.forEach((f, i) => {
+      jobs.push(load("frames/"+f).then(im => { ANIM_IMG[key][i] = im; }));
+    });
+  }
+  await Promise.all(jobs);
+  // land 复用 idle 的第 0 帧 —— 必须在 await 之后赋值，否则拿到空数组
+  ANIM_IMG.land = [ANIM_IMG.idle[0]];
+
+  for (const key in OBST)  jobs.push(load("assets/"+key+".png").then(im=>IMG[key]=im));
+  for (const key in DECOR) jobs.push(load("assets/"+key+".png").then(im=>IMG[key]=im));
+  await Promise.all(jobs);
+
+  try{
+    const b = localStorage.getItem("cyreneJumpBest");
+    if (b) S.best = parseInt(b,10) || 0;
+  }catch(e){}
+  document.getElementById("best").textContent = String(S.best).padStart(5,"0");
+
+  reset();
+  showOverlay("准备出发", 0, IS_TOUCH ? "点「跳」开始" : "按 空格 开始");
+
+  // 触屏设备把键盘提示换成按钮提示
+  if (IS_TOUCH){
+    document.querySelector(".hintbar").innerHTML =
+      "点「跳」跳跃　点「重来」重新开始";
+  }
+
+  // 测试接口：可手动步进，不依赖 rAF
+  window.__game = {
+    S, step, draw, jump, startGame, restart, reset,
+    get mode(){ return S.mode; },
+    get score(){ return Math.floor(S.score); },
+    heroBox
+  };
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
