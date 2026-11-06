@@ -1,0 +1,149 @@
+{
+ "idle": [
+  {
+   "file": "idle_0.png",
+   "w": 83,
+   "h": 118
+  },
+  {
+   "file": "idle_1.png",
+   "w": 83,
+   "h": 118
+  },
+  {
+   "file": "idle_2.png",
+   "w": 83,
+   "h": 118
+  },
+  {
+   "file": "idle_3.png",
+   "w": 83,
+   "h": 118
+  },
+  {
+   "file": "idle_4.png",
+   "w": 83,
+   "h": 118
+  },
+  {
+   "file": "idle_5.png",
+   "w": 83,
+   "h": 118
+  },
+  {
+   "file": "idle_6.png",
+   "w": 83,
+   "h": 118
+  }
+ ],
+ "run": [
+  {
+   "file": "run_0.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_1.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_2.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_3.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_4.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_5.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_6.png",
+   "w": 98,
+   "h": 118
+  },
+  {
+   "file": "run_7.png",
+   "w": 98,
+   "h": 118
+  }
+ ],
+ "jump": [
+  {
+   "file": "jump_0.png",
+   "w": 95,
+   "h": 118
+  },
+  {
+   "file": "jump_1.png",
+   "w": 95,
+   "h": 118
+  },
+  {
+   "file": "jump_2.png",
+   "w": 95,
+   "h": 118
+  },
+  {
+   "file": "jump_3.png",
+   "w": 95,
+   "h": 118
+  },
+  {
+   "file": "jump_4.png",
+   "w": 95,
+   "h": 118
+  }
+ ],
+ "land": [
+  {
+   "file": "land_0.png",
+   "w": 84,
+   "h": 118
+  }
+ ],
+ "wav": [
+  {
+   "file": "wav_0.png",
+   "w": 84,
+   "h": 118
+  },
+  {
+   "file": "wav_1.png",
+   "w": 84,
+   "h": 118
+  },
+  {
+   "file": "wav_2.png",
+   "w": 84,
+   "h": 118
+  },
+  {
+   "file": "wav_3.png",
+   "w": 84,
+   "h": 118
+  }
+ ],
+ "crash": [
+  {
+   "file": "crash_0.png",
+   "w": 128,
+   "h": 118
+  },
+  {
+   "file": "crash_1.png",
+   "w": 128,
+   "h": 118
+  }
+ ]
+}
